@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <title>Nyíregyháza Kalandor</title>
+    <style>
+        :root {
+            --paper: #e9e1cf;
+            --paper-light: #f5efdf;
+            --paper-dark: #cfc4ae;
+            --graphite: #393832;
+            --pencil: #5a574e;
+            --pencil-shadow: rgba(31, 29, 25, 0.28);
+            --ink-accent: #8d3425;
+        }
+        body {
+            margin: 0;
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: var(--graphite);
+            font-family: 'Segoe Print', 'Comic Sans MS', cursive;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+        }
+        .info-bar {
+            width: min(800px, calc(100vw - 24px));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            /* Elrejtjük az infósávot, amíg a menüben vagyunk */
+            visibility: hidden; 
+        }
+        .info-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .hud-btn {
+            min-width: 44px;
+            min-height: 40px;
+            padding: 6px 10px;
+            border: 2px solid rgba(255, 255, 255, 0.7);
+            background: rgba(0, 0, 0, 0.45);
+            color: #fff;
+            font: inherit;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .container {
+            position: relative;
+            width: min(800px, 100vw, calc((100dvh - 140px) * 2));
+            aspect-ratio: 2 / 1;
+        }
+        canvas {
+            border: 4px solid #fff;
+            background: #87CEEB; /* Égszínkék alap */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            image-rendering: pixelated;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            box-sizing: border-box;
+            width: 100%;
+            height: 100%;
+        }
+        /* HTML alapú Menü Overlay a Canvas felett */
+        #menuOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 4px solid transparent; /* Igazodás a canvas széléhez */
+            box-sizing: border-box;
+            background: linear-gradient(110deg, rgba(7, 24, 35, 0.82), rgba(7, 24, 35, 0.28)), url("textures/mc isti hatterkep.png") center / cover;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2;
+            padding: 28px;
+            text-align: center;
+        }
+        h1 {
+            max-width: 700px;
+            margin: 8px 0 14px;
+            font-size: 44px;
+            color: #fff;
+            text-shadow: 3px 3px 0 #000;
+            text-align: center;
+        }
+        .menu-kicker, .menu-note, .world-hint {
+            margin: 0;
+            color: #e7f5fa;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .menu-kicker { color: #ffd166; }
+        .menu-note { margin: 0 0 24px; }
+        .play-btn {
+            position: relative;
+            padding: 15px 40px;
+            font-size: 28px;
+            font-family: inherit;
+            font-weight: bold;
+            color: var(--graphite);
+            background:
+                radial-gradient(ellipse at 16% 12%, rgba(255,255,255,0.68), transparent 38%),
+                repeating-linear-gradient(3deg, rgba(91,83,68,0.025) 0 1px, transparent 1px 5px),
+                linear-gradient(176deg, var(--paper-light), var(--paper));
+            border: 1px solid rgba(95, 85, 67, 0.38);
+            border-radius: 2px 1px 3px 1px;
+            cursor: pointer;
+            box-shadow: inset 0 1px 3px rgba(255,255,255,0.8), inset 0 -3px 5px rgba(90,75,52,0.12), 2px 4px 0 var(--pencil-shadow);
+            text-shadow: 0.45px 0.45px rgba(35, 33, 29, 0.42);
+            transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
+        }
+        .play-btn:hover {
+            filter: brightness(1.04) contrast(1.03);
+            transform: translateY(-1px) rotate(-0.4deg);
+        }
+        .play-btn:active {
+            transform: translateY(2px) rotate(0.3deg);
+            box-shadow: inset 0 2px 5px rgba(75,64,48,0.2), 0 1px 0 var(--pencil-shadow);
+        }
+        #restartOverlay, #worldOverlay, #levelIntroOverlay, #pauseOverlay {
+            position: absolute;
+            inset: 0;
+            box-sizing: border-box;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            text-align: center;
+        }
+        #restartOverlay {
+            background: rgba(0, 0, 0, 0.86);
+            z-index: 3;
+        }
+        #restartOverlay h2, #worldOverlay h2, #levelIntroOverlay h2 {
+            margin: 0 20px 24px;
+            color: #fff;
+            font-size: 30px;
+            text-align: center;
+            text-shadow: 3px 3px 0 #000;
+        }
+        #worldOverlay {
+            background: linear-gradient(135deg, rgba(10, 25, 30, 0.97), rgba(20, 72, 72, 0.94));
+            z-index: 4;
+        }
+        .world-route {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            margin: 12px 0 28px;
+        }
+        .world-name {
+            min-width: 190px;
+            padding: 18px 14px;
+            border: 2px solid rgba(255, 255, 255, 0.42);
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .world-name small {
+            display: block;
+            margin-top: 8px;
+            color: #cce4dd;
+            font-size: 12px;
+        }
+        .world-name.next { border-color: #ffd166; color: #ffd166; }
+        .world-arrow { color: #ffd166; font-size: 32px; }
+        .world-hint { margin-top: 14px; color: #cce4dd; }
+        #levelIntroOverlay {
+            background: rgba(5, 16, 22, 0.72);
+            pointer-events: none;
+            z-index: 4;
+        }
+        #levelIntroOverlay h2 { margin-bottom: 0; color: #ffd166; }
+        #pauseOverlay {
+            background: rgba(5, 16, 22, 0.94);
+            z-index: 5;
+        }
+        .pause-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 16px;
+        }
+        .mobile-controls {
+            display: none;
+            width: min(800px, 100vw);
+            box-sizing: border-box;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            touch-action: none;
+        }
+        .mobile-controls.is-mobile.active { display: flex; }
+        .mobile-direction-controls { display: flex; gap: 12px; }
+        .mobile-control-btn {
+            width: 68px;
+            height: 68px;
+            border: 2px solid #fff;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.16);
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 24px;
+            touch-action: none;
+            user-select: none;
+        }
+        .mobile-control-btn.jump { width: 112px; font-size: 18px; }
+        #collectorOverlay {
+            position: absolute;
+            inset: 0;
+            z-index: 6;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            box-sizing: border-box;
+            padding: 18px;
+            background: linear-gradient(135deg, rgba(10, 25, 30, 0.98), rgba(58, 35, 18, 0.96));
+            overflow-y: auto;
+            text-align: center;
+        }
+        #collectorOverlay h2 { margin: 0; color: #ffd166; font-size: 26px; }
+        .collector-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        .collector-button { padding: 10px 16px; font-size: 16px; }
+        .collector-button:disabled { opacity: 0.45; cursor: not-allowed; }
+        .collector-message { min-height: 20px; margin: 0; color: #fff; font-size: 14px; font-weight: bold; }
+        .character-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            width: 100%;
+            max-height: 130px;
+            overflow-y: auto;
+        }
+        .character-card {
+            padding: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background: rgba(255, 255, 255, 0.08);
+            font-size: 12px;
+        }
+        .character-avatar, .spin-avatar {
+            display: grid;
+            place-items: center;
+            width: 44px;
+            height: 44px;
+            margin: 0 auto 6px;
+            border: 2px solid currentColor;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.3);
+            font-size: 22px;
+            font-weight: bold;
+        }
+        img.character-avatar, img.spin-avatar {
+            object-fit: cover;
+            object-position: center 25%;
+        }
+        .character-card strong { display: block; color: #fff; }
+        .rarity-common { color: #d7e1e8; }
+        .rarity-rare { color: #5bc0eb; }
+        .rarity-epic { color: #c792ea; }
+        .rarity-legendary { color: #ffd166; }
+        .rarity-mythic { color: #ff7777; }
+        .tycoon-home, .tycoon-shop {
+            width: 100%;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        .tycoon-home.active, .tycoon-shop.active { display: flex; }
+        .tycoon-home h2, .tycoon-shop h2 { margin: 0; color: #ffd166; font-size: 30px; }
+        .tycoon-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+        .tycoon-stat {
+            min-width: 150px;
+            padding: 8px 14px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.28);
+        }
+        .tycoon-stat strong { display: block; color: #ffd166; font-size: 22px; }
+        .clicker-button {
+            width: min(320px, 72vw);
+            min-height: 120px;
+            border: 6px solid #fff;
+            border-radius: 18px;
+            background: linear-gradient(145deg, #ff571a, #b33000);
+            color: #fff;
+            font-family: inherit;
+            font-size: 26px;
+            font-weight: bold;
+            box-shadow: 0 8px 0 #742300, 0 0 30px rgba(255, 69, 0, 0.35);
+            cursor: pointer;
+            transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+        }
+        .clicker-button:hover { filter: brightness(1.12); }
+        .clicker-button:active { transform: translateY(6px); box-shadow: 0 2px 0 #742300; }
+        .clicker-button:disabled { filter: grayscale(0.65); cursor: wait; }
+        .tycoon-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        .tycoon-shop { display: none; }
+        .shop-header { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 12px; }
+        .shop-balance { margin: 0; color: #ffd166; font-size: 20px; font-weight: bold; }
+        .crate-art {
+            width: min(280px, 72vw);
+            height: 110px;
+            object-fit: contain;
+        }
+        .crate-spin-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 8;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 18px;
+            box-sizing: border-box;
+            padding: 18px;
+            background: rgba(4, 12, 17, 0.97);
+        }
+        .crate-spin-overlay.active { display: flex; }
+        .spin-window {
+            position: relative;
+            width: 100%;
+            height: 150px;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.06);
+        }
+        .spin-reel {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: max-content;
+            height: 100%;
+            transform: translateX(0);
+        }
+        .spin-marker {
+            position: absolute;
+            z-index: 1;
+            top: 0;
+            left: 50%;
+            width: 3px;
+            height: 100%;
+            background: #ffd166;
+            transform: translateX(-50%);
+            pointer-events: none;
+        }
+        .spin-card {
+            display: flex;
+            flex: 0 0 112px;
+            height: 118px;
+            flex-direction: column;
+            justify-content: center;
+            gap: 8px;
+            box-sizing: border-box;
+            padding: 8px;
+            border: 2px solid currentColor;
+            background: rgba(255, 255, 255, 0.08);
+            text-align: center;
+        }
+        .spin-card strong { color: #fff; font-size: 12px; }
+        .spin-avatar { width: 48px; height: 48px; margin-bottom: 0; }
+        .tycoon-summary {
+            position: absolute;
+            inset: 0;
+            z-index: 9;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            box-sizing: border-box;
+            padding: 24px;
+            background: rgba(5, 16, 22, 0.96);
+            text-align: center;
+        }
+        .tycoon-summary.active { display: flex; }
+        .tycoon-summary p { max-width: 640px; margin: 0; color: #ffd166; font-size: 24px; font-weight: bold; }
+        #myCharactersOverlay {
+            position: absolute;
+            inset: 0;
+            z-index: 7;
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            box-sizing: border-box;
+            padding: 20px;
+            background: rgba(5, 16, 22, 0.97);
+            text-align: center;
+        }
+        #myCharactersOverlay.active { display: flex; }
+        .character-select-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .character-select-header h2 { margin: 0; color: #ffd166; font-size: 26px; }
+        .character-select-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            width: 100%;
+            overflow-y: auto;
+        }
+        .character-select-card {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.28);
+            background: rgba(255, 255, 255, 0.07);
+            color: #fff;
+            font: inherit;
+            cursor: pointer;
+        }
+        .character-select-card.selected { border-color: #ffd166; background: rgba(255, 209, 102, 0.14); }
+        .character-select-card img { width: 68px; height: 68px; border-radius: 6px; object-fit: cover; object-position: center 25%; }
+        .character-select-card strong { overflow-wrap: anywhere; }
+        .character-select-status { min-height: 18px; margin: 0; color: #cce4dd; font-size: 13px; }
+        #menuOverlay {
+            background:
+                radial-gradient(ellipse at 16% 12%, rgba(255,255,255,0.82), transparent 28%),
+                radial-gradient(ellipse at 82% 86%, rgba(111,95,67,0.14), transparent 34%),
+                linear-gradient(90deg, transparent 0 7%, rgba(166,70,62,0.28) 7.1% 7.35%, transparent 7.45%),
+                repeating-linear-gradient(to bottom, transparent 0 28px, rgba(91,126,150,0.2) 28px 29px),
+                repeating-linear-gradient(2deg, rgba(91,83,68,0.025) 0 1px, transparent 1px 5px),
+                linear-gradient(176deg, var(--paper-light), var(--paper));
+            color: var(--graphite);
+            box-shadow: inset 0 0 34px rgba(90,75,52,0.18);
+        }
+        h1 {
+            color: var(--graphite);
+            text-shadow: 1px 1px rgba(40,38,34,0.22), -0.5px 0 rgba(40,38,34,0.14);
+            transform: rotate(-0.7deg);
+        }
+        .menu-kicker, .menu-note, .world-hint { color: var(--pencil); }
+        .menu-kicker { color: var(--ink-accent); }
+        #restartOverlay, #levelIntroOverlay { background: rgba(35,32,28,0.64); }
+        #restartOverlay h2, #pauseOverlay h2, #levelIntroOverlay h2 {
+            padding: 12px 22px;
+            border: 1px solid rgba(95,85,67,0.38);
+            background:
+                repeating-linear-gradient(2deg, rgba(91,83,68,0.025) 0 1px, transparent 1px 5px),
+                linear-gradient(176deg, var(--paper-light), var(--paper));
+            color: var(--graphite);
+            text-shadow: 0.4px 0.4px rgba(35,33,29,0.35);
+            box-shadow: 2px 3px 0 var(--pencil-shadow);
+            transform: rotate(-0.6deg);
+        }
+        #worldOverlay, #pauseOverlay, #collectorOverlay, #myCharactersOverlay, .tycoon-summary {
+            color: var(--graphite);
+            background:
+                radial-gradient(ellipse at 14% 10%, rgba(255,255,255,0.85), transparent 30%),
+                radial-gradient(ellipse at 90% 92%, rgba(111,95,67,0.13), transparent 34%),
+                linear-gradient(90deg, transparent 0 7%, rgba(166,70,62,0.23) 7.1% 7.35%, transparent 7.45%),
+                repeating-linear-gradient(to bottom, transparent 0 28px, rgba(91,126,150,0.17) 28px 29px),
+                repeating-linear-gradient(2deg, rgba(91,83,68,0.025) 0 1px, transparent 1px 5px),
+                linear-gradient(176deg, var(--paper-light), var(--paper));
+        }
+        #pauseOverlay h2 { margin: 0 0 24px; }
+        #worldOverlay .menu-kicker { color: var(--ink-accent); }
+        .world-name {
+            border: 1px solid rgba(95,85,67,0.4);
+            background: rgba(255,255,255,0.38);
+            color: var(--graphite);
+            box-shadow: 2px 3px 0 var(--pencil-shadow);
+        }
+        .world-name small, .world-hint { color: var(--pencil); }
+        .world-name.next { border-color: var(--ink-accent); color: var(--ink-accent); }
+        .world-arrow { color: var(--ink-accent); }
+        #collectorOverlay h2, .tycoon-home h2, .tycoon-shop h2, .character-select-header h2 { color: var(--graphite); }
+        .tycoon-stat, .character-card, .character-select-card, .spin-card {
+            border: 1px solid rgba(95,85,67,0.35);
+            background:
+                repeating-linear-gradient(2deg, rgba(91,83,68,0.025) 0 1px, transparent 1px 5px),
+                rgba(255,255,255,0.4);
+            color: var(--graphite);
+            box-shadow: 1px 2px 0 rgba(31,29,25,0.16);
+        }
+        .tycoon-stat strong, .shop-balance, .tycoon-summary p { color: var(--ink-accent); }
+        .collector-message, .character-select-status { color: var(--pencil); }
+        .spin-window { border-color: rgba(95,85,67,0.42); background: rgba(255,255,255,0.36); }
+        .spin-card strong { color: var(--graphite); }
+        .spin-marker { background: var(--ink-accent); }
+        .hud-btn {
+            border-color: rgba(95,85,67,0.42);
+            background: linear-gradient(176deg, var(--paper-light), var(--paper));
+            color: var(--graphite);
+            box-shadow: 1px 2px 0 var(--pencil-shadow);
+        }
+        .character-select-card.selected { border-color: var(--ink-accent); background: rgba(141,52,37,0.1); }
+        .info-bar {
+            box-sizing: border-box;
+            padding: 6px 12px;
+            border: 1px solid rgba(95,85,67,0.38);
+            background:
+                repeating-linear-gradient(2deg, rgba(91,83,68,0.025) 0 1px, transparent 1px 5px),
+                linear-gradient(176deg, var(--paper-light), var(--paper));
+            color: var(--graphite);
+            box-shadow: 1px 2px 0 var(--pencil-shadow);
+        }
+        #worldOverlay h2, .character-card strong { color: var(--graphite); }
+        .crate-spin-overlay {
+            color: var(--graphite);
+            background:
+                radial-gradient(ellipse at 14% 10%, rgba(255,255,255,0.85), transparent 30%),
+                repeating-linear-gradient(to bottom, transparent 0 28px, rgba(91,126,150,0.17) 28px 29px),
+                linear-gradient(176deg, var(--paper-light), var(--paper));
+        }
+        .crate-spin-overlay h2 { color: var(--graphite); }
+        @media (max-width: 600px) {
+            .info-bar { gap: 6px; font-size: 13px; }
+            .hud-btn { min-width: 36px; min-height: 36px; padding: 3px 6px; font-size: 16px; }
+            .world-route { gap: 8px; }
+            .world-name { min-width: 0; padding: 14px 8px; font-size: 15px; }
+            .world-name small { font-size: 10px; }
+            h1 { font-size: 32px; }
+            #collectorOverlay { padding: 12px; gap: 6px; }
+            #collectorOverlay h2 { font-size: 21px; }
+            .collector-button { padding: 8px 10px; font-size: 13px; }
+            .character-grid { max-height: 100px; }
+            .tycoon-home h2, .tycoon-shop h2 { font-size: 22px; }
+            .tycoon-stat { min-width: 110px; }
+            .clicker-button { min-height: 96px; font-size: 21px; }
+            .spin-card { flex-basis: 92px; }
+            .tycoon-summary p { font-size: 18px; }
+            #myCharactersOverlay { padding: 12px; }
+            .character-select-grid { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+            .character-select-card img { width: 58px; height: 58px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="info-bar" id="infoBar">
+        <div>SZINT: <span id="levelName">Nyiregy01</span></div>
+        <div>KÓLÁK: <span id="score">0</span></div>
+        <div class="info-actions">
+            <button class="hud-btn" id="muteButton" type="button" aria-label="Háttérzene némítása" aria-pressed="false" title="Háttérzene némítása">♫</button>
+            <button class="hud-btn" id="pauseButton" type="button" aria-label="Szünet" title="Szünet">Ⅱ</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        
+        <!-- FŐMENÜ -->
+        <div id="menuOverlay">
+            <p class="menu-kicker">KÉT VILÁG • HÚSZ PÁLYA</p>
+            <h1>NYÍREGYHÁZA KALANDOR</h1>
+            <p class="menu-note">Nyíregyházától Miskolcig. Készülj a nehezebb terepre.</p>
+            <button class="play-btn" id="playButton">PLAY</button>
+            <button class="play-btn collector-button" id="myCharactersButton" type="button">MY ISTI'S</button>
+            <button class="play-btn collector-button" id="collectorButton" type="button">KOLDUS TYCOON</button>
+        </div>
+
+        <div id="restartOverlay">
+            <h2>ELVESZTETTED EZT A KÖRT</h2>
+            <button class="play-btn" id="restartButton">PÁLYA ÚJRAINDÍTÁSA</button>
+        </div>
+
+        <div id="worldOverlay">
+            <p class="menu-kicker">VILÁG TELJESÍTVE</p>
+            <div class="world-route">
+                <div class="world-name">NYÍREGYHÁZA<small>10 PÁLYA TELJESÍTVE</small></div>
+                <div class="world-arrow">&#8594;</div>
+                <div class="world-name next">MISKOLC<small>10 ÚJ, NEHEZEBB PÁLYA</small></div>
+            </div>
+            <button class="play-btn" id="nextWorldButton">NEXT WORLD</button>
+            <p class="world-hint">VAGY NYOMD MEG AZ ENTERT</p>
+        </div>
+
+        <div id="levelIntroOverlay">
+            <h2 id="levelIntroTitle"></h2>
+        </div>
+
+        <div id="pauseOverlay">
+            <h2>JÁTÉK SZÜNETEL</h2>
+            <div class="pause-actions">
+                <button class="play-btn" id="exitButton" type="button">KILÉPÉS</button>
+                <button class="play-btn" id="resumeButton" type="button">FOLYTATÁS</button>
+            </div>
+        </div>
+
+        <div id="collectorOverlay">
+            <div class="tycoon-home active" id="tycoonHome">
+                <h2>KOLDUS TYCOON</h2>
+                <div class="tycoon-stats">
+                    <div class="tycoon-stat">KÓLAKÉSZLET<strong id="collectorColaCount">0</strong></div>
+                    <div class="tycoon-stat">EBBEN A LÁJVBAN<strong id="tycoonSessionCount">0</strong></div>
+                </div>
+                <button class="clicker-button" id="collectColaButton" type="button">KOLDULJ KÓLÁT<br>+1 LITER</button>
+                <p class="collector-message" id="collectorMessage" aria-live="polite">Kattints a gombra egy kóláért.</p>
+                <div class="tycoon-actions">
+                    <button class="play-btn collector-button" id="openShopButton" type="button">SHOP: ISTI LÁDÁK</button>
+                    <button class="play-btn collector-button" id="backToMenuButton" type="button">KILÉPÉS</button>
+                </div>
+            </div>
+            <div class="tycoon-shop" id="tycoonShop">
+                <div class="shop-header">
+                    <button class="hud-btn" id="shopBackButton" type="button" aria-label="Vissza">←</button>
+                    <h2>ISTI LÁDÁK</h2>
+                    <p class="shop-balance">KÓLA: <span id="shopColaCount">0</span></p>
+                </div>
+                <img class="crate-art" src="skins/Istiláda.png" alt="Isti láda">
+                <button class="play-btn collector-button" id="openCrateButton" type="button" disabled>ISTI LÁDA NYITÁSA - 10 KÓLA</button>
+                <p class="collector-message" id="shopMessage" aria-live="polite">A ládákban különböző ritkaságú karakterek vannak.</p>
+                <div class="character-grid" id="characterCollection" aria-label="Karaktergyűjtemény"></div>
+            </div>
+            <div class="crate-spin-overlay" id="crateSpinOverlay">
+                <h2>ISTI LÁDA</h2>
+                <div class="spin-window" id="spinWindow">
+                    <div class="spin-marker"></div>
+                    <div class="spin-reel" id="spinReel"></div>
+                </div>
+                <p class="collector-message" id="spinResult" aria-live="polite">Pörgetés...</p>
+                <button class="play-btn collector-button" id="closeSpinButton" type="button" style="display:none">FOLYTATÁS</button>
+            </div>
+        </div>
+        <div id="myCharactersOverlay">
+            <div class="character-select-header">
+                <button class="hud-btn" id="backFromCharactersButton" type="button" aria-label="Vissza">←</button>
+                <h2>MY ISTI'S</h2>
+                <span></span>
+            </div>
+            <p class="character-select-status" id="characterSelectStatus"></p>
+            <div class="character-select-grid" id="characterSelectGrid"></div>
+        </div>
+        <div class="tycoon-summary" id="tycoonSummaryOverlay">
+            <p id="tycoonSummaryText"></p>
+            <button class="play-btn" id="closeSummaryButton" type="button">VISSZA A FŐMENÜBE</button>
+        </div>
+    </div>
+
+    <div class="mobile-controls" id="mobileControls" aria-label="Mobilos vezérlés">
+        <div class="mobile-direction-controls">
+            <button class="mobile-control-btn" type="button" data-key="ArrowLeft" aria-label="Balra">◀</button>
+            <button class="mobile-control-btn" type="button" data-key="ArrowRight" aria-label="Jobbra">▶</button>
+        </div>
+        <button class="mobile-control-btn jump" type="button" data-key="Space" aria-label="Ugrás">UGRÁS</button>
+    </div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const menuOverlay = document.getElementById("menuOverlay");
+const infoBar = document.getElementById("infoBar");
+const playButton = document.getElementById("playButton");
+const restartOverlay = document.getElementById("restartOverlay");
+const restartButton = document.getElementById("restartButton");
+const worldOverlay = document.getElementById("worldOverlay");
+const nextWorldButton = document.getElementById("nextWorldButton");
+const levelIntroOverlay = document.getElementById("levelIntroOverlay");
+const levelIntroTitle = document.getElementById("levelIntroTitle");
+const scoreDisplay = document.getElementById("score");
+const pauseOverlay = document.getElementById("pauseOverlay");
+const pauseButton = document.getElementById("pauseButton");
+const muteButton = document.getElementById("muteButton");
+const exitButton = document.getElementById("exitButton");
+const resumeButton = document.getElementById("resumeButton");
+const mobileControls = document.getElementById("mobileControls");
+const collectorOverlay = document.getElementById("collectorOverlay");
+const collectorButton = document.getElementById("collectorButton");
+const myCharactersButton = document.getElementById("myCharactersButton");
+const myCharactersOverlay = document.getElementById("myCharactersOverlay");
+const backFromCharactersButton = document.getElementById("backFromCharactersButton");
+const characterSelectGrid = document.getElementById("characterSelectGrid");
+const characterSelectStatus = document.getElementById("characterSelectStatus");
+const collectColaButton = document.getElementById("collectColaButton");
+const openCrateButton = document.getElementById("openCrateButton");
+const backToMenuButton = document.getElementById("backToMenuButton");
+const collectorColaCount = document.getElementById("collectorColaCount");
+const collectorMessage = document.getElementById("collectorMessage");
+const characterCollection = document.getElementById("characterCollection");
+const tycoonHome = document.getElementById("tycoonHome");
+const tycoonShop = document.getElementById("tycoonShop");
+const tycoonSessionCount = document.getElementById("tycoonSessionCount");
+const shopColaCount = document.getElementById("shopColaCount");
+const shopMessage = document.getElementById("shopMessage");
+const openShopButton = document.getElementById("openShopButton");
+const shopBackButton = document.getElementById("shopBackButton");
+const crateSpinOverlay = document.getElementById("crateSpinOverlay");
+const spinWindow = document.getElementById("spinWindow");
+const spinReel = document.getElementById("spinReel");
+const spinResult = document.getElementById("spinResult");
+const closeSpinButton = document.getElementById("closeSpinButton");
+const tycoonSummaryOverlay = document.getElementById("tycoonSummaryOverlay");
+const tycoonSummaryText = document.getElementById("tycoonSummaryText");
+const closeSummaryButton = document.getElementById("closeSummaryButton");
+const isMobileDevice = window.matchMedia("(pointer: coarse)").matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+if (isMobileDevice) mobileControls.classList.add("is-mobile");
+
+// ==========================================
+// 🖼️ TEXTÚRÁK (ELLENŐRZÖTT BETÖLTÉSSEL)
+// ==========================================
+const playerImg = new Image(); playerImg.src = "textures/mc isti karakter.png";
+const coinImg = new Image(); coinImg.src = "textures/Kólák(coinok).png";
+const groundImg = new Image(); groundImg.src = "textures/platformok.png";
+const portalImg = new Image(); portalImg.src = "textures/mc isti portal.png";
+const backgroundImg = new Image(); backgroundImg.src = "textures/mc isti hatterkep.png";
+
+const soundEffects = {
+    jump: new Audio(),
+    collect: new Audio(),
+    death: [
+        new Audio("audio/mc halal.wav"),
+        new Audio("audio/mc halal 2.wav"),
+        new Audio("audio/mc halal 3.wav"),
+        new Audio("audio/mc halal4.wav"),
+        new Audio("audio/mc halal 5.wav"),
+        new Audio("audio/mc halal 6.wav"),
+        new Audio("audio/mc halal 7.wav"),
+        new Audio("audio/mc halal 8.wav"),
+        new Audio("audio/mc halal 9.wav"),
+        new Audio("audio/mc halal 10.wav")
+    ],
+    portal: new Audio("audio/Portalba jutas hangeffekt.wav"),
+    complete: new Audio()
+};
+const backgroundMusic = new Audio("audio/mc hatterzene.wav");
+backgroundMusic.loop = true;
+backgroundMusic.volume = 0.35;
+let musicMuted = false;
+
+function playSound(sound) {
+    if (!sound || !sound.src) return;
+    sound.currentTime = 0;
+    const playback = sound.play();
+    if (playback) playback.catch(() => {});
+}
+
+function playRandomSound(sounds) {
+    const sound = sounds[Math.floor(Math.random() * sounds.length)];
+    playSound(sound);
+}
+
+function startBackgroundMusic() {
+    const playback = backgroundMusic.play();
+    if (playback) playback.catch(() => {});
+}
+
+function isImageValid(img) {
+    return img.complete && img.naturalWidth !== 0;
+}
+
+function createLavaTexture() {
+    const texture = document.createElement("canvas");
+    texture.width = 64;
+    texture.height = 32;
+    const textureContext = texture.getContext("2d");
+    const palette = ["#451713", "#6e2016", "#9b2817", "#c83919", "#ed6020", "#ff9b2d"];
+
+    for (let y = 0; y < texture.height; y += 4) {
+        for (let x = 0; x < texture.width; x += 4) {
+            const heat = Math.random();
+            textureContext.fillStyle = heat > 0.88 ? palette[5] : heat > 0.68 ? palette[4] : heat > 0.42 ? palette[3] : heat > 0.18 ? palette[2] : palette[1];
+            textureContext.fillRect(x, y, 4, 4);
+        }
+    }
+
+    textureContext.fillStyle = palette[0];
+    textureContext.fillRect(0, 0, texture.width, 3);
+    textureContext.fillRect(0, texture.height - 3, texture.width, 3);
+    return texture;
+}
+
+const fallbackLavaTexture = createLavaTexture();
+const lavaTextureImage = new Image();
+lavaTextureImage.src = "textures/LÁVA.jfif";
+
+const CRATE_COST = 10;
+const COLLECTOR_SAVE_KEY = "nyiregyhazaCollectorSave";
+const DEFAULT_CHARACTER_ID = "base-isti";
+const collectorCharacters = [
+    { id: "base-isti", name: "MC ISTI", rarity: "common", weight: 0, image: "textures/mc isti karakter.png" },
+    { id: "cola-runner", name: "SILLYSTI", rarity: "common", weight: 55, image: "skins/common_karakter-SILLYSTI.jpg" },
+    { id: "bottle-guard", name: "NAPSZEMÜVEG", rarity: "rare", weight: 25, image: "skins/rare_karakter-NAPSZEMÜVEG.jfif" },
+    { id: "steel-jumper", name: "PÉNZ NÖK HATALOM", rarity: "epic", weight: 15, image: "skins/epic_karakter-PÉNZ NÖK HATALOM.jfif" },
+    { id: "lava-master", name: "ISTI A GYERMEK", rarity: "legendary", weight: 4, image: "skins/Legendary_karakter-ISTI A GYERMEK.jfif" },
+    { id: "mamut", name: "MÁMUT", rarity: "mythic", weight: 1 }
+];
+const crateCharacters = collectorCharacters.filter(character => character.id !== DEFAULT_CHARACTER_ID && character.weight > 0);
+const collectorCharacterImages = new Map(collectorCharacters.filter(character => character.image).map(character => {
+    const image = new Image();
+    image.src = character.image;
+    return [character.id, image];
+}));
+const rarityNames = {
+    common: "Közönséges",
+    rare: "Ritka",
+    epic: "Epikus",
+    legendary: "Legendás",
+    mythic: "Mitikus"
+};
+let collectorColas = 0;
+let unlockedCharacterIds = new Set();
+let selectedCharacterId = null;
+let tycoonEarnedThisSession = 0;
+let clickerCooldownUntil = 0;
+let spinTimeout = null;
+
+try {
+    const savedCollectorState = JSON.parse(localStorage.getItem(COLLECTOR_SAVE_KEY) || "{}");
+    if (Number.isSafeInteger(savedCollectorState.colas) && savedCollectorState.colas >= 0) {
+        collectorColas = savedCollectorState.colas;
+    }
+    if (Array.isArray(savedCollectorState.unlocked)) {
+        unlockedCharacterIds = new Set(savedCollectorState.unlocked);
+    }
+    if (typeof savedCollectorState.selected === "string" && unlockedCharacterIds.has(savedCollectorState.selected)) {
+        selectedCharacterId = savedCollectorState.selected;
+    }
+    if (savedCollectorState.selected === "cola-runner" && savedCollectorState.defaultCharacterId !== DEFAULT_CHARACTER_ID) {
+        selectedCharacterId = DEFAULT_CHARACTER_ID;
+    }
+} catch {}
+
+unlockedCharacterIds.add(DEFAULT_CHARACTER_ID);
+if (!selectedCharacterId || !unlockedCharacterIds.has(selectedCharacterId)) {
+    selectedCharacterId = DEFAULT_CHARACTER_ID;
+}
+saveCollectorState();
+
+function saveCollectorState() {
+    try {
+        localStorage.setItem(COLLECTOR_SAVE_KEY, JSON.stringify({
+            colas: collectorColas,
+            unlocked: [...unlockedCharacterIds],
+            selected: selectedCharacterId,
+            defaultCharacterId: DEFAULT_CHARACTER_ID
+        }));
+    } catch {}
+}
+
+function renderCollectorCollection() {
+    collectorColaCount.innerText = collectorColas;
+    shopColaCount.innerText = collectorColas;
+    tycoonSessionCount.innerText = tycoonEarnedThisSession;
+    openCrateButton.disabled = collectorColas < CRATE_COST;
+    characterCollection.replaceChildren();
+
+    for (const character of collectorCharacters) {
+        const unlocked = unlockedCharacterIds.has(character.id);
+        const card = document.createElement("div");
+        card.className = "character-card";
+        const avatar = document.createElement(unlocked && character.image ? "img" : "span");
+        avatar.className = `character-avatar rarity-${character.rarity}`;
+        if (unlocked && character.image) {
+            avatar.src = character.image;
+            avatar.alt = character.name;
+        } else {
+            avatar.innerText = unlocked ? character.name.slice(0, 1) : "?";
+        }
+        const name = document.createElement("strong");
+        name.innerText = unlocked ? character.name : "???";
+        const rarity = document.createElement("span");
+        rarity.className = `rarity-${character.rarity}`;
+        rarity.innerText = `${rarityNames[character.rarity]}${unlocked ? "" : " • ZÁRT"}`;
+        card.append(avatar, name, rarity);
+        characterCollection.append(card);
+    }
+}
+
+function renderCharacterSelector() {
+    characterSelectGrid.replaceChildren();
+    const availableCharacters = collectorCharacters.filter(character => unlockedCharacterIds.has(character.id));
+
+    if (availableCharacters.length === 0) {
+        characterSelectStatus.innerText = "Előbb nyiss karaktert a Koldus Tycoonban.";
+        return;
+    }
+
+    const selectedCharacter = availableCharacters.find(character => character.id === selectedCharacterId);
+    characterSelectStatus.innerText = selectedCharacter
+        ? `Kiválasztva: ${selectedCharacter.name}`
+        : "Válassz egy feloldott karaktert a pályákhoz.";
+
+    for (const character of availableCharacters) {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `character-select-card${character.id === selectedCharacterId ? " selected" : ""}`;
+        card.setAttribute("aria-pressed", String(character.id === selectedCharacterId));
+        const avatar = document.createElement(character.image ? "img" : "span");
+        avatar.className = `character-avatar rarity-${character.rarity}`;
+        if (character.image) {
+            avatar.src = character.image;
+            avatar.alt = character.name;
+        } else {
+            avatar.innerText = character.name.slice(0, 1);
+        }
+        const name = document.createElement("strong");
+        name.innerText = character.name;
+        const rarity = document.createElement("span");
+        rarity.className = `rarity-${character.rarity}`;
+        rarity.innerText = rarityNames[character.rarity];
+        const status = document.createElement("span");
+        status.className = "character-select-status";
+        status.innerText = character.id === selectedCharacterId ? "KIVÁLASZTVA" : "KIVÁLASZTÁS";
+        card.append(avatar, name, rarity, status);
+        card.addEventListener("click", () => {
+            selectedCharacterId = character.id;
+            saveCollectorState();
+            renderCharacterSelector();
+        });
+        characterSelectGrid.append(card);
+    }
+}
+
+function drawCollectorCharacter() {
+    const totalWeight = crateCharacters.reduce((total, character) => total + character.weight, 0);
+    let roll = Math.random() * totalWeight;
+    for (const character of crateCharacters) {
+        roll -= character.weight;
+        if (roll < 0) return character;
+    }
+    return crateCharacters[0];
+}
+
+function startCrateSpin() {
+    const reward = drawCollectorCharacter();
+    const winningIndex = 26;
+    spinReel.replaceChildren();
+
+    for (let index = 0; index <= winningIndex; index++) {
+        const character = index === winningIndex ? reward : drawCollectorCharacter();
+        const card = document.createElement("div");
+        card.className = `spin-card rarity-${character.rarity}`;
+        const avatar = document.createElement(character.image ? "img" : "span");
+        avatar.className = "spin-avatar";
+        if (character.image) {
+            avatar.src = character.image;
+            avatar.alt = character.name;
+        } else {
+            avatar.innerText = character.name.slice(0, 1);
+        }
+        const name = document.createElement("strong");
+        name.innerText = character.name;
+        const rarity = document.createElement("span");
+        rarity.innerText = rarityNames[character.rarity];
+        card.append(avatar, name, rarity);
+        spinReel.append(card);
+    }
+
+    spinReel.style.transition = "none";
+    spinReel.style.transform = "translateX(0)";
+    spinResult.innerText = "Pörgetés...";
+    closeSpinButton.style.display = "none";
+    crateSpinOverlay.classList.add("active");
+    renderCollectorCollection();
+    void spinReel.offsetWidth;
+
+    requestAnimationFrame(() => {
+        const winningCard = spinReel.children[winningIndex];
+        const targetOffset = spinWindow.clientWidth / 2 - winningCard.offsetLeft - winningCard.offsetWidth / 2;
+        spinReel.style.transition = "transform 3.4s cubic-bezier(0.08, 0.65, 0, 1)";
+        spinReel.style.transform = `translateX(${targetOffset}px)`;
+    });
+
+    clearTimeout(spinTimeout);
+    spinTimeout = setTimeout(() => {
+        let resultMessage;
+        if (unlockedCharacterIds.has(reward.id)) {
+            collectorColas += 5;
+            resultMessage = `Már megvolt: ${reward.name}. Duplikátumért +5 kóla.`;
+        } else {
+            unlockedCharacterIds.add(reward.id);
+            resultMessage = `${rarityNames[reward.rarity]} karakter: ${reward.name}!`;
+        }
+        saveCollectorState();
+        renderCollectorCollection();
+        shopMessage.innerText = resultMessage;
+        spinResult.innerText = resultMessage;
+        closeSpinButton.style.display = "block";
+    }, 3500);
+}
+
+// ==========================================
+// JÁTÉK ÁLLAPOTOK ÉS STATS
+// ==========================================
+let gameState = "MENU";
+let score = 0;
+let levelStartScore = 0;
+let currentLevelIndex = 0;
+let levelIntroTimer = null;
+let animationTick = 0;
+const LEVELS_PER_WORLD = 10;
+const levelNames = [
+    ...Array.from({ length: 10 }, (_, index) => `Nyiregy${String(index + 1).padStart(2, "0")}`),
+    ...Array.from({ length: 10 }, (_, index) => `Miskolc ${String(index + 1).padStart(2, "0")}`)
+];
+
+const player = {
+    x: 50, y: 300, width: 40, height: 50,
+    velocityX: 0, velocityY: 0, speed: 5,
+    gravity: 0.6, jumpStrength: -12, grounded: false
+};
+
+let platforms = [];
+let coins = [];
+let hazards = [];
+let lavaParticles = [];
+const portal = { x: 0, y: 0, width: 50, height: 70 };
+
+// 🗺️ FIX PÁLYATERVEK
+const levelsData = [
+    {
+        platforms: [{x:0, y:360, w:800, h:40}, {x:250, y:260, w:150, h:20}, {x:500, y:180, w:150, h:20}],
+        coins: [{x:300, y:220}, {x:550, y:140}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:250, h:40}, {x:480, y:360, w:320, h:40}, {x:180, y:280, w:110, h:20}, {x:330, y:210, w:95, h:20}, {x:455, y:260, w:70, h:20}],
+        coins: [{x:205, y:240}, {x:360, y:170}, {x:475, y:220}],
+        portal: {x:730, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:200, h:40}, {x:600, y:360, w:200, h:40}, {x:150, y:280, w:90, h:20}, {x:280, y:220, w:80, h:20}, {x:400, y:160, w:75, h:20}, {x:510, y:230, w:70, h:20}],
+        coins: [{x:180, y:240}, {x:305, y:180}, {x:420, y:120}, {x:530, y:190}],
+        portal: {x:700, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:180, h:40}, {x:640, y:360, w:160, h:40}, {x:130, y:280, w:75, h:20}, {x:245, y:210, w:70, h:20}, {x:355, y:145, w:65, h:20}, {x:465, y:210, w:60, h:20}, {x:560, y:280, w:65, h:20}],
+        coins: [{x:150, y:240}, {x:265, y:170}, {x:372, y:105}, {x:478, y:170}, {x:578, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:160, h:40}, {x:680, y:360, w:120, h:40}, {x:120, y:280, w:65, h:20}, {x:220, y:210, w:60, h:20}, {x:320, y:145, w:55, h:20}, {x:415, y:210, w:50, h:20}, {x:505, y:145, w:50, h:20}, {x:595, y:235, w:55, h:20}],
+        coins: [{x:138, y:240}, {x:238, y:170}, {x:333, y:105}, {x:425, y:170}, {x:518, y:105}, {x:610, y:195}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:260, h:40}, {x:540, y:360, w:260, h:40}, {x:205, y:290, w:90, h:18}, {x:315, y:220, w:90, h:18}, {x:425, y:270, w:90, h:18}],
+        coins: [{x:225, y:250}, {x:340, y:180}, {x:450, y:230}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:220, h:40}, {x:580, y:360, w:220, h:40}, {x:175, y:280, w:80, h:18}, {x:280, y:220, w:75, h:18}, {x:385, y:160, w:75, h:18}, {x:490, y:230, w:75, h:18}],
+        coins: [{x:190, y:240}, {x:300, y:180}, {x:400, y:120}, {x:505, y:190}],
+        portal: {x:700, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:180, h:40}, {x:620, y:360, w:180, h:40}, {x:130, y:280, w:70, h:18}, {x:235, y:220, w:70, h:18}, {x:340, y:160, w:70, h:18}, {x:560, y:280, w:70, h:18}],
+        movingPlatforms: [{x:445, y:220, w:80, h:18, motion: {axis: "x", range: 42, speed: 0.035, phase: 0}}],
+        coins: [{x:145, y:240}, {x:250, y:180}, {x:355, y:120}, {x:465, y:180}, {x:575, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:170, h:40}, {x:650, y:360, w:150, h:40}, {x:125, y:280, w:65, h:18}, {x:225, y:215, w:60, h:18}, {x:530, y:280, w:70, h:18}],
+        movingPlatforms: [{x:325, y:170, w:75, h:18, motion: {axis: "y", range: 28, speed: 0.035, phase: 0}}, {x:420, y:220, w:75, h:18, motion: {axis: "x", range: 38, speed: 0.04, phase: 1}}],
+        coins: [{x:140, y:240}, {x:240, y:175}, {x:345, y:130}, {x:440, y:180}, {x:545, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:145, h:40}, {x:655, y:360, w:145, h:40}, {x:105, y:285, w:65, h:18}, {x:210, y:220, w:60, h:18}, {x:315, y:160, w:60, h:18}, {x:525, y:270, w:70, h:18}],
+        movingPlatforms: [{x:415, y:210, w:75, h:18, motion: {axis: "x", range: 48, speed: 0.045, phase: 0.5}}],
+        coins: [{x:120, y:245}, {x:225, y:180}, {x:330, y:120}, {x:430, y:170}, {x:540, y:230}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:155, h:40}, {x:650, y:360, w:150, h:40}, {x:115, y:285, w:60, h:18}, {x:215, y:220, w:55, h:18}, {x:315, y:155, w:55, h:18}, {x:530, y:280, w:65, h:18}],
+        movingPlatforms: [{x:410, y:215, w:70, h:18, motion: {axis: "y", range: 32, speed: 0.045, phase: 0}}, {x:475, y:220, w:65, h:18, motion: {axis: "x", range: 30, speed: 0.04, phase: 2}}],
+        coins: [{x:125, y:245}, {x:225, y:180}, {x:325, y:115}, {x:425, y:170}, {x:540, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:145, h:40}, {x:655, y:360, w:145, h:40}, {x:105, y:285, w:58, h:18}, {x:200, y:225, w:55, h:18}, {x:295, y:165, w:55, h:18}, {x:520, y:275, w:65, h:18}],
+        movingPlatforms: [{x:380, y:205, w:65, h:18, motion: {axis: "x", range: 45, speed: 0.05, phase: 0}}, {x:445, y:210, w:65, h:18, motion: {axis: "y", range: 28, speed: 0.05, phase: 1}}],
+        coins: [{x:115, y:245}, {x:210, y:185}, {x:305, y:125}, {x:395, y:165}, {x:460, y:170}, {x:530, y:235}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:135, h:40}, {x:665, y:360, w:135, h:40}, {x:95, y:290, w:55, h:18}, {x:190, y:230, w:50, h:18}, {x:285, y:170, w:50, h:18}, {x:530, y:280, w:60, h:18}],
+        movingPlatforms: [{x:355, y:215, w:65, h:18, motion: {axis: "x", range: 42, speed: 0.055, phase: 0}}, {x:440, y:165, w:60, h:18, motion: {axis: "y", range: 32, speed: 0.05, phase: 2}}, {x:500, y:220, w:60, h:18, motion: {axis: "x", range: 25, speed: 0.05, phase: 1}}],
+        coins: [{x:105, y:250}, {x:200, y:190}, {x:295, y:130}, {x:365, y:175}, {x:450, y:125}, {x:510, y:180}, {x:540, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:150, h:40}, {x:650, y:360, w:150, h:40}, {x:110, y:285, w:60, h:18}, {x:215, y:220, w:55, h:18}, {x:320, y:155, w:55, h:18}, {x:535, y:275, w:65, h:18}],
+        movingPlatforms: [{x:410, y:210, w:65, h:18, motion: {axis: "x", range: 42, speed: 0.045, phase: 0}}],
+        hazards: [{type: "lava", x:150, y:350, w:500, h:50}],
+        coins: [{x:125, y:245}, {x:230, y:180}, {x:335, y:115}, {x:425, y:165}, {x:550, y:235}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:140, h:40}, {x:660, y:360, w:140, h:40}, {x:100, y:285, w:60, h:18}, {x:205, y:220, w:58, h:18}, {x:315, y:160, w:58, h:18}, {x:520, y:280, w:65, h:18}],
+        movingPlatforms: [{x:410, y:220, w:70, h:18, motion: {axis: "y", range: 26, speed: 0.04, phase: 0}}],
+        hazards: [{type: "lava", x:140, y:350, w:520, h:50}, {type: "spikes", x:320, y:146, w:48, h:14}],
+        coins: [{x:115, y:245}, {x:215, y:180}, {x:325, y:120}, {x:425, y:175}, {x:535, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:150, h:40}, {x:650, y:360, w:150, h:40}, {x:110, y:285, w:60, h:18}, {x:215, y:220, w:55, h:18}, {x:320, y:155, w:55, h:18}, {x:530, y:275, w:65, h:18}],
+        hazards: [{type: "lava", x:150, y:350, w:500, h:50}, {type: "swing", anchorX: 420, anchorY: 40, length: 155, radius: 22, speed: 0.035, phase: 0}],
+        coins: [{x:125, y:245}, {x:230, y:180}, {x:335, y:115}, {x:545, y:235}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:130, h:40}, {x:670, y:360, w:130, h:40}, {x:95, y:290, w:55, h:18}, {x:190, y:230, w:55, h:18}, {x:285, y:170, w:55, h:18}, {x:520, y:280, w:65, h:18}],
+        movingPlatforms: [{x:380, y:220, w:65, h:18, motion: {axis: "x", range: 38, speed: 0.05, phase: 0}}],
+        hazards: [{type: "lava", x:130, y:350, w:540, h:50}, {type: "spikes", x:285, y:156, w:52, h:14}],
+        coins: [{x:105, y:250}, {x:200, y:190}, {x:295, y:130}, {x:400, y:180}, {x:535, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:140, h:40}, {x:660, y:360, w:140, h:40}, {x:100, y:285, w:55, h:18}, {x:195, y:225, w:50, h:18}, {x:290, y:165, w:50, h:18}, {x:530, y:280, w:60, h:18}],
+        movingPlatforms: [{x:365, y:210, w:60, h:18, motion: {axis: "x", range: 45, speed: 0.05, phase: 0}}, {x:450, y:190, w:60, h:18, motion: {axis: "y", range: 25, speed: 0.05, phase: 1}}],
+        hazards: [{type: "lava", x:140, y:350, w:520, h:50}, {type: "swing", anchorX: 455, anchorY: 35, length: 150, radius: 20, speed: 0.04, phase: 1}],
+        coins: [{x:110, y:245}, {x:205, y:185}, {x:300, y:125}, {x:385, y:165}, {x:470, y:145}, {x:540, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:130, h:40}, {x:670, y:360, w:130, h:40}, {x:95, y:290, w:52, h:18}, {x:185, y:230, w:50, h:18}, {x:275, y:170, w:50, h:18}, {x:530, y:280, w:60, h:18}],
+        movingPlatforms: [{x:350, y:215, w:58, h:18, motion: {axis: "x", range: 44, speed: 0.055, phase: 0}}, {x:430, y:175, w:55, h:18, motion: {axis: "y", range: 30, speed: 0.055, phase: 2}}, {x:495, y:220, w:55, h:18, motion: {axis: "x", range: 24, speed: 0.05, phase: 1}}],
+        hazards: [{type: "lava", x:130, y:350, w:540, h:50}, {type: "spikes", x:275, y:156, w:48, h:14}, {type: "swing", anchorX: 420, anchorY: 35, length: 145, radius: 20, speed: 0.045, phase: 0}],
+        coins: [{x:105, y:250}, {x:195, y:190}, {x:285, y:130}, {x:365, y:170}, {x:445, y:135}, {x:510, y:180}, {x:540, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:120, h:40}, {x:680, y:360, w:120, h:40}, {x:85, y:295, w:50, h:18}, {x:175, y:235, w:48, h:18}, {x:265, y:175, w:48, h:18}, {x:535, y:280, w:58, h:18}],
+        movingPlatforms: [{x:335, y:220, w:55, h:18, motion: {axis: "x", range: 48, speed: 0.06, phase: 0}}, {x:405, y:175, w:52, h:18, motion: {axis: "y", range: 34, speed: 0.06, phase: 1}}, {x:475, y:225, w:52, h:18, motion: {axis: "x", range: 28, speed: 0.055, phase: 2}}],
+        hazards: [{type: "lava", x:120, y:350, w:560, h:50}, {type: "spikes", x:265, y:161, w:45, h:14}, {type: "spikes", x:535, y:266, w:54, h:14}, {type: "swing", anchorX: 410, anchorY: 30, length: 155, radius: 22, speed: 0.05, phase: 1}],
+        coins: [{x:95, y:255}, {x:185, y:195}, {x:275, y:135}, {x:350, y:175}, {x:420, y:135}, {x:490, y:180}, {x:545, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:120, h:40}, {x:680, y:360, w:120, h:40}, {x:80, y:295, w:48, h:18}, {x:165, y:235, w:46, h:18}, {x:250, y:175, w:46, h:18}, {x:535, y:280, w:55, h:18}],
+        movingPlatforms: [{x:320, y:220, w:52, h:18, motion: {axis: "x", range: 52, speed: 0.065, phase: 0}}, {x:390, y:165, w:50, h:18, motion: {axis: "y", range: 38, speed: 0.06, phase: 2}}, {x:455, y:215, w:50, h:18, motion: {axis: "x", range: 34, speed: 0.06, phase: 1}}, {x:500, y:245, w:48, h:18, motion: {axis: "y", range: 22, speed: 0.055, phase: 0}}],
+        hazards: [{type: "lava", x:120, y:350, w:560, h:50}, {type: "spikes", x:250, y:161, w:43, h:14}, {type: "spikes", x:535, y:266, w:51, h:14}, {type: "swing", anchorX: 405, anchorY: 25, length: 165, radius: 23, speed: 0.055, phase: 0}],
+        coins: [{x:90, y:255}, {x:175, y:195}, {x:260, y:135}, {x:335, y:175}, {x:405, y:125}, {x:470, y:170}, {x:515, y:200}, {x:545, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:115, h:40}, {x:685, y:360, w:115, h:40}, {x:78, y:295, w:48, h:18}, {x:165, y:235, w:46, h:18}, {x:252, y:175, w:46, h:18}, {x:535, y:280, w:55, h:18}],
+        movingPlatforms: [{x:325, y:220, w:52, h:18, motion: {axis: "x", range: 52, speed: 0.065, phase: 1}}, {x:395, y:160, w:50, h:18, motion: {axis: "y", range: 38, speed: 0.06, phase: 0}}, {x:465, y:215, w:50, h:18, motion: {axis: "x", range: 32, speed: 0.06, phase: 2}}],
+        hazards: [{type: "lava", x:115, y:350, w:570, h:50}, {type: "spikes", x:252, y:161, w:42, h:14}, {type: "spikes", x:535, y:266, w:52, h:14}, {type: "swing", anchorX: 390, anchorY: 25, length: 160, radius: 23, speed: 0.06, phase: 0}, {type: "swing", anchorX: 515, anchorY: 20, length: 145, radius: 20, speed: 0.05, phase: 2}],
+        coins: [{x:88, y:255}, {x:175, y:195}, {x:260, y:135}, {x:340, y:175}, {x:410, y:120}, {x:480, y:170}, {x:545, y:240}],
+        portal: {x:720, y:290}
+    },
+    {
+        platforms: [{x:0, y:360, w:110, h:40}, {x:690, y:360, w:110, h:40}, {x:72, y:300, w:46, h:18}, {x:155, y:240, w:44, h:18}, {x:238, y:180, w:44, h:18}, {x:540, y:280, w:52, h:18}],
+        movingPlatforms: [{x:305, y:225, w:50, h:18, motion: {axis: "x", range: 55, speed: 0.07, phase: 0}}, {x:372, y:165, w:48, h:18, motion: {axis: "y", range: 42, speed: 0.065, phase: 1}}, {x:440, y:215, w:48, h:18, motion: {axis: "x", range: 40, speed: 0.065, phase: 2}}, {x:500, y:205, w:48, h:18, motion: {axis: "y", range: 28, speed: 0.06, phase: 0}}],
+        hazards: [{type: "lava", x:110, y:350, w:580, h:50}, {type: "spikes", x:238, y:166, w:42, h:14}, {type: "spikes", x:540, y:266, w:50, h:14}, {type: "swing", anchorX: 375, anchorY: 20, length: 165, radius: 24, speed: 0.065, phase: 1}, {type: "swing", anchorX: 510, anchorY: 20, length: 150, radius: 22, speed: 0.06, phase: 0}],
+        coins: [{x:82, y:260}, {x:165, y:200}, {x:245, y:140}, {x:320, y:180}, {x:390, y:125}, {x:460, y:175}, {x:510, y:165}, {x:550, y:240}],
+        portal: {x:720, y:290}
+    }
+].slice(0, LEVELS_PER_WORLD * 2);
+
+// MENÜ INDÍTÁS GOMB ESEMÉNY
+playButton.addEventListener("click", () => {
+    menuOverlay.style.display = "none"; // Menü elrejtése
+    infoBar.style.visibility = "visible"; // Infósáv mutatása
+    if (isMobileDevice) mobileControls.classList.add("active");
+    gameState = "PLAYING";
+    loadLevel(0); // Első pálya indítása
+    startBackgroundMusic();
+});
+
+myCharactersButton.addEventListener("click", () => {
+    menuOverlay.style.display = "none";
+    myCharactersOverlay.classList.add("active");
+    renderCharacterSelector();
+});
+
+backFromCharactersButton.addEventListener("click", () => {
+    myCharactersOverlay.classList.remove("active");
+    menuOverlay.style.display = "flex";
+});
+
+collectorButton.addEventListener("click", () => {
+    menuOverlay.style.display = "none";
+    collectorOverlay.style.display = "flex";
+    tycoonHome.classList.add("active");
+    tycoonShop.classList.remove("active");
+    crateSpinOverlay.classList.remove("active");
+    tycoonEarnedThisSession = 0;
+    collectorMessage.innerText = "Kattints a gombra egy kóláért.";
+    gameState = "COLLECTOR";
+    backgroundMusic.pause();
+    renderCollectorCollection();
+});
+
+collectColaButton.addEventListener("click", () => {
+    const now = Date.now();
+    if (gameState !== "COLLECTOR" || now < clickerCooldownUntil) return;
+    clickerCooldownUntil = now + 180;
+    collectColaButton.disabled = true;
+    collectorColas++;
+    tycoonEarnedThisSession++;
+    collectorMessage.innerText = "+1 LITER KÓLA";
+    playSound(soundEffects.collect);
+    saveCollectorState();
+    renderCollectorCollection();
+    setTimeout(() => { collectColaButton.disabled = false; }, 180);
+});
+
+openShopButton.addEventListener("click", () => {
+    tycoonHome.classList.remove("active");
+    tycoonShop.classList.add("active");
+    renderCollectorCollection();
+});
+
+shopBackButton.addEventListener("click", () => {
+    tycoonShop.classList.remove("active");
+    tycoonHome.classList.add("active");
+});
+
+openCrateButton.addEventListener("click", () => {
+    if (collectorColas < CRATE_COST) return;
+    collectorColas -= CRATE_COST;
+    shopMessage.innerText = "A láda kinyílt. Nézd, mit nyertél!";
+    saveCollectorState();
+    startCrateSpin();
+});
+
+backToMenuButton.addEventListener("click", () => {
+    collectorOverlay.style.display = "none";
+    menuOverlay.style.display = "flex";
+    tycoonSummaryText.innerText = `Ennyi liter kólára koldultál össze ebben a lájvban: ${tycoonEarnedThisSession}`;
+    tycoonSummaryOverlay.classList.add("active");
+    gameState = "MENU";
+});
+
+closeSpinButton.addEventListener("click", () => {
+    crateSpinOverlay.classList.remove("active");
+});
+
+closeSummaryButton.addEventListener("click", () => {
+    tycoonSummaryOverlay.classList.remove("active");
+});
+
+nextWorldButton.addEventListener("click", startNextWorld);
+pauseButton.addEventListener("click", pauseGame);
+resumeButton.addEventListener("click", resumeGame);
+exitButton.addEventListener("click", exitToMenu);
+
+muteButton.addEventListener("click", () => {
+    musicMuted = !musicMuted;
+    backgroundMusic.muted = musicMuted;
+    muteButton.setAttribute("aria-pressed", String(musicMuted));
+    muteButton.setAttribute("aria-label", musicMuted ? "Háttérzene bekapcsolása" : "Háttérzene némítása");
+    muteButton.title = musicMuted ? "Háttérzene bekapcsolása" : "Háttérzene némítása";
+});
+
+restartButton.addEventListener("click", () => {
+    score = levelStartScore;
+    scoreDisplay.innerText = score;
+    restartOverlay.style.display = "none";
+    loadLevel(currentLevelIndex);
+    backgroundMusic.currentTime = 0;
+    startBackgroundMusic();
+});
+
+function pauseGame() {
+    if (gameState !== "PLAYING") return;
+    gameState = "PAUSED";
+    pauseOverlay.style.display = "flex";
+    backgroundMusic.pause();
+    for (const key of Object.keys(keys)) keys[key] = false;
+}
+
+function resumeGame() {
+    if (gameState !== "PAUSED") return;
+    pauseOverlay.style.display = "none";
+    gameState = "PLAYING";
+    if (!musicMuted) startBackgroundMusic();
+}
+
+function exitToMenu() {
+    pauseOverlay.style.display = "none";
+    menuOverlay.style.display = "flex";
+    infoBar.style.visibility = "hidden";
+    mobileControls.classList.remove("active");
+    backgroundMusic.pause();
+    backgroundMusic.currentTime = 0;
+    score = 0;
+    levelStartScore = 0;
+    scoreDisplay.innerText = score;
+    gameState = "MENU";
+}
+
+function startNextWorld() {
+    if (gameState !== "WORLD_TRANSITION") return;
+    worldOverlay.style.display = "none";
+    loadLevel(10);
+}
+
+function loadLevel(index) {
+    clearTimeout(levelIntroTimer);
+    levelIntroOverlay.style.display = "none";
+
+    if (index >= levelsData.length) {
+        gameState = "GAMEOVER";
+        backgroundMusic.pause();
+        return;
+    }
+    
+    currentLevelIndex = index;
+    levelStartScore = score;
+    document.getElementById("levelName").innerText = levelNames[index];
+    
+    const level = levelsData[index];
+    platforms = [
+        ...level.platforms.map(platform => ({ ...platform })),
+        ...(level.movingPlatforms || []).map(platform => ({
+            ...platform,
+            motion: { ...platform.motion },
+            startX: platform.x,
+            startY: platform.y
+        }))
+    ];
+    hazards = (level.hazards || []).map(hazard => {
+        const copy = { ...hazard };
+        if (copy.type === "swing") {
+            const angle = Math.sin(animationTick * copy.speed + copy.phase) * 0.9;
+            copy.x = copy.anchorX + Math.sin(angle) * copy.length;
+            copy.y = copy.anchorY + Math.cos(angle) * copy.length;
+        }
+        return copy;
+    });
+    lavaParticles = [];
+    coins = levelsData[index].coins.map(c => ({ x: c.x, y: c.y, width: 16, height: 44, collected: false }));
+    
+    portal.x = levelsData[index].portal.x;
+    portal.y = levelsData[index].portal.y;
+    
+    player.x = 50;
+    player.y = 300;
+    player.velocityX = 0;
+    player.velocityY = 0;
+    player.grounded = false;
+    player.ridingPlatform = null;
+
+    levelIntroTitle.innerText = `${index < 10 ? "Nyiregy" : "Miskolc"} ${String(index % 10 + 1).padStart(2, "0")}`;
+    levelIntroOverlay.style.display = "flex";
+    gameState = "INTRO";
+    levelIntroTimer = setTimeout(() => {
+        if (gameState === "INTRO") {
+            levelIntroOverlay.style.display = "none";
+            gameState = "PLAYING";
+        }
+    }, 1100);
+}
+
+// BILLENTYŰZET KEZELÉS
+const keys = {};
+window.addEventListener("keydown", e => {
+    keys[e.code] = true;
+    if (e.code === "Enter" && gameState === "WORLD_TRANSITION") startNextWorld();
+    if (e.code === "Escape" && gameState === "PLAYING") pauseGame();
+    else if (e.code === "Escape" && gameState === "PAUSED") resumeGame();
+});
+window.addEventListener("keyup", e => { keys[e.code] = false; });
+window.addEventListener("blur", () => {
+    for (const key of Object.keys(keys)) keys[key] = false;
+});
+
+for (const control of mobileControls.querySelectorAll("[data-key]")) {
+    const key = control.dataset.key;
+    const releaseControl = () => { keys[key] = false; };
+
+    control.addEventListener("pointerdown", event => {
+        event.preventDefault();
+        if (gameState !== "PLAYING") return;
+        keys[key] = true;
+        control.setPointerCapture(event.pointerId);
+    });
+    control.addEventListener("pointerup", releaseControl);
+    control.addEventListener("pointercancel", releaseControl);
+    control.addEventListener("lostpointercapture", releaseControl);
+}
+
+function checkCollision(rect1, rect2) {
+    return rect1.x < rect2.x + rect2.width &&
+           rect1.x + rect1.width > rect2.x &&
+           rect1.y < rect2.y + rect2.height &&
+           rect1.y + rect1.height > rect2.y;
+}
+
+function checkCircleCollision(rect, centerX, centerY, radius) {
+    const closestX = Math.max(rect.x, Math.min(centerX, rect.x + rect.width));
+    const closestY = Math.max(rect.y, Math.min(centerY, rect.y + rect.height));
+    const distanceX = centerX - closestX;
+    const distanceY = centerY - closestY;
+    return distanceX * distanceX + distanceY * distanceY < radius * radius;
+}
+
+function updateMovingObjects() {
+    for (const platform of platforms) {
+        if (!platform.motion) continue;
+
+        const previousX = platform.x;
+        const previousY = platform.y;
+        const offset = Math.sin(animationTick * platform.motion.speed + platform.motion.phase) * platform.motion.range;
+        if (platform.motion.axis === "x") platform.x = platform.startX + offset;
+        else platform.y = platform.startY + offset;
+
+        if (player.ridingPlatform === platform) {
+            player.x += platform.x - previousX;
+            player.y += platform.y - previousY;
+        }
+    }
+
+    for (const hazard of hazards) {
+        if (hazard.type !== "swing") continue;
+        const angle = Math.sin(animationTick * hazard.speed + hazard.phase) * 0.9;
+        hazard.x = hazard.anchorX + Math.sin(angle) * hazard.length;
+        hazard.y = hazard.anchorY + Math.cos(angle) * hazard.length;
+    }
+
+    updateLavaParticles();
+}
+
+function updateLavaParticles() {
+    for (const hazard of hazards) {
+        if (hazard.type !== "lava" || lavaParticles.length >= 100 || Math.random() > 0.3) continue;
+
+        const lifetime = 28 + Math.random() * 32;
+        lavaParticles.push({
+            x: hazard.x + Math.random() * hazard.w,
+            y: hazard.y + Math.random() * hazard.h * 0.72,
+            velocityX: (Math.random() - 0.5) * 0.6,
+            velocityY: -0.5 - Math.random() * 1.1,
+            size: 2 + Math.random() * 3,
+            life: lifetime,
+            maxLife: lifetime,
+            bubble: Math.random() > 0.42,
+            color: Math.random() > 0.5 ? "#ffd35a" : "#ff7227"
+        });
+    }
+
+    for (let index = lavaParticles.length - 1; index >= 0; index--) {
+        const particle = lavaParticles[index];
+        particle.x += particle.velocityX;
+        particle.y += particle.velocityY;
+        particle.velocityY += 0.012;
+        particle.life--;
+        if (particle.life <= 0) lavaParticles.splice(index, 1);
+    }
+}
+
+function handlePlayerDeath() {
+    gameState = "DEAD";
+    restartOverlay.style.display = "flex";
+    playRandomSound(soundEffects.death);
+    backgroundMusic.pause();
+    for (const key of Object.keys(keys)) keys[key] = false;
+}
+
+// JÁTÉK LOGIKA FRISSÍTÉSE
+function update() {
+    if (gameState !== "PLAYING") return;
+
+    animationTick++;
+    updateMovingObjects();
+
+    // Irányítás
+    if (keys["ArrowRight"] || keys["KeyD"]) player.velocityX = player.speed;
+    else if (keys["ArrowLeft"] || keys["KeyA"]) player.velocityX = -player.speed;
+    else player.velocityX = 0;
+
+    if ((keys["ArrowUp"] || keys["Space"] || keys["KeyW"]) && player.grounded) {
+        player.velocityY = player.jumpStrength;
+        player.grounded = false;
+        player.ridingPlatform = null;
+        playSound(soundEffects.jump);
+    }
+
+    player.velocityY += player.gravity;
+    player.x += player.velocityX;
+    player.y += player.velocityY;
+
+    // Szélek lezárása
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+
+    // Szakadék ellenőrzés
+    if (player.y > canvas.height) {
+        handlePlayerDeath();
+        return;
+    }
+
+    // Szilárd platform ütközések
+    player.grounded = false;
+    player.ridingPlatform = null;
+    for (let i = 0; i < platforms.length; i++) {
+        let p = platforms[i];
+        let pRect = { x: p.x, y: p.y, width: p.w, height: p.h };
+        
+        if (checkCollision(player, pRect)) {
+            if (player.velocityY > 0 && player.y + player.height - player.velocityY <= p.y + 6) {
+                player.y = p.y - player.height;
+                player.velocityY = 0;
+                player.grounded = true;
+                player.ridingPlatform = p;
+            }
+        }
+    }
+
+    for (const hazard of hazards) {
+        const hit = hazard.type === "swing"
+            ? checkCircleCollision(player, hazard.x, hazard.y, hazard.radius)
+            : checkCollision(player, {
+                x: hazard.x,
+                y: hazard.y,
+                width: hazard.w,
+                height: hazard.h
+            });
+        if (hit) {
+            handlePlayerDeath();
+            return;
+        }
+    }
+
+    // Érmék gyűjtése
+    for (let c of coins) {
+        if (!c.collected && checkCollision(player, c)) {
+            c.collected = true;
+            score++;
+            scoreDisplay.innerText = score;
+            playSound(soundEffects.collect);
+        }
+    }
+
+    // Kapu / Portál érintése
+    if (checkCollision(player, portal)) {
+        playSound(soundEffects.portal);
+        if (currentLevelIndex === LEVELS_PER_WORLD - 1) {
+            worldOverlay.style.display = "flex";
+            gameState = "WORLD_TRANSITION";
+            return;
+        }
+        if (currentLevelIndex === levelsData.length - 1) {
+            playSound(soundEffects.complete);
+            backgroundMusic.pause();
+            gameState = "GAMEOVER";
+            return;
+        }
+        loadLevel(currentLevelIndex + 1);
+    }
+}
+
+function renderHazards() {
+    for (const hazard of hazards) {
+        if (hazard.type === "lava") {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(hazard.x, hazard.y, hazard.w, hazard.h);
+            ctx.clip();
+            const texture = isImageValid(lavaTextureImage) ? lavaTextureImage : fallbackLavaTexture;
+            const tileWidth = 72;
+            const textureShift = (animationTick * 0.45) % tileWidth;
+            for (let x = hazard.x - tileWidth; x < hazard.x + hazard.w + tileWidth; x += tileWidth) {
+                ctx.drawImage(texture, x - textureShift, hazard.y - 5, tileWidth, hazard.h + 12);
+            }
+            ctx.restore();
+
+            ctx.fillStyle = "#ffbd38";
+            ctx.fillRect(hazard.x, hazard.y, hazard.w, 3);
+            ctx.fillStyle = "rgba(255, 215, 91, 0.72)";
+            for (let x = hazard.x + (animationTick % 18); x < hazard.x + hazard.w; x += 38) {
+                const surfaceY = hazard.y + 4 + Math.sin((x + animationTick) * 0.08) * 2;
+                ctx.fillRect(x, surfaceY, 8, 2);
+            }
+        } else if (hazard.type === "spikes") {
+            ctx.fillStyle = "#e8edf0";
+            for (let x = hazard.x; x < hazard.x + hazard.w; x += 16) {
+                ctx.beginPath();
+                ctx.moveTo(x, hazard.y + hazard.h);
+                ctx.lineTo(x + 8, hazard.y);
+                ctx.lineTo(Math.min(x + 16, hazard.x + hazard.w), hazard.y + hazard.h);
+                ctx.closePath();
+                ctx.fill();
+            }
+        } else if (hazard.type === "swing") {
+            ctx.strokeStyle = "#434b50";
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(hazard.anchorX, hazard.anchorY);
+            ctx.lineTo(hazard.x, hazard.y);
+            ctx.stroke();
+            ctx.fillStyle = "#626d73";
+            ctx.beginPath();
+            ctx.arc(hazard.x, hazard.y, hazard.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#252b2e";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+    }
+
+    for (const particle of lavaParticles) {
+        ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife);
+        ctx.fillStyle = particle.color;
+        if (particle.bubble) {
+            ctx.beginPath();
+            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(255, 230, 151, 0.75)";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        } else {
+            ctx.fillRect(Math.round(particle.x), Math.round(particle.y), particle.size, particle.size);
+        }
+    }
+    ctx.globalAlpha = 1;
+}
+
+// GRAFIKA MEGJELENÍTÉSE
+function render() {
+    // VÉGKÉPERNYŐ
+    if (gameState === "GAMEOVER") {
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "bold 30px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("Ütött az órád MÁMUT!!!", canvas.width / 2, canvas.height / 2 + 10);
+        return;
+    }
+
+    // Ha a menüben vagyunk, csak töröljük a háttér canvas-t (mivel a HTML overlay takarja)
+    if (gameState === "MENU") {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+    }
+
+    // Pálya törlése játék közben
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (isImageValid(backgroundImg)) {
+        ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+    }
+
+    // 1. Platformok kirajzolása
+    for (let p of platforms) {
+        if (isImageValid(groundImg)) {
+            const sourceX = groundImg.naturalWidth * 0.21;
+            const sourceY = groundImg.naturalHeight * 0.36;
+            const sourceWidth = groundImg.naturalWidth * 0.64;
+            const sourceHeight = groundImg.naturalHeight * 0.39;
+            const drawHeight = p.h * 1.3;
+            ctx.drawImage(
+                groundImg,
+                sourceX, sourceY, sourceWidth, sourceHeight,
+                p.x, p.y - drawHeight * 0.23, p.w, drawHeight
+            );
+        } else {
+            ctx.fillStyle = "#654321";
+            ctx.fillRect(p.x, p.y, p.w, p.h);
+        }
+        if (p.motion) {
+            ctx.strokeStyle = "#ffd166";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
+        }
+    }
+
+    renderHazards();
+
+    // 2. Portál kirajzolása
+    if (isImageValid(portalImg)) {
+        let ratio = portalImg.naturalWidth / portalImg.naturalHeight;
+        let pWidth = portal.height * ratio;
+        ctx.drawImage(portalImg, portal.x, portal.y, pWidth, portal.height);
+    } else {
+        ctx.fillStyle = "#9400D3";
+        ctx.beginPath();
+        ctx.ellipse(portal.x + portal.width / 2, portal.y + portal.height / 2, portal.width / 2, portal.height / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // 3. Érmék kirajzolása
+    for (const coin of coins) {
+        if (coin.collected) continue;
+
+        if (isImageValid(coinImg)) {
+            ctx.drawImage(coinImg, coin.x, coin.y, coin.width, coin.height);
+        } else {
+            ctx.fillStyle = "#FFD700";
+            ctx.beginPath();
+            ctx.arc(coin.x + coin.width / 2, coin.y + coin.height / 2, coin.width / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#B8860B";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+    }
+
+    // 4. Játékos kirajzolása
+    const selectedCharacterImage = selectedCharacterId ? collectorCharacterImages.get(selectedCharacterId) : null;
+    if (isImageValid(selectedCharacterImage)) {
+        const targetAspect = player.width / player.height;
+        const imageAspect = selectedCharacterImage.naturalWidth / selectedCharacterImage.naturalHeight;
+        let sourceX = 0;
+        let sourceY = 0;
+        let sourceWidth = selectedCharacterImage.naturalWidth;
+        let sourceHeight = selectedCharacterImage.naturalHeight;
+
+        if (imageAspect > targetAspect) {
+            sourceWidth = sourceHeight * targetAspect;
+            sourceX = (selectedCharacterImage.naturalWidth - sourceWidth) / 2;
+        } else {
+            sourceHeight = sourceWidth / targetAspect;
+            sourceY = Math.min(selectedCharacterImage.naturalHeight - sourceHeight, selectedCharacterImage.naturalHeight * 0.08);
+        }
+
+        ctx.drawImage(
+            selectedCharacterImage,
+            sourceX, sourceY, sourceWidth, sourceHeight,
+            player.x, player.y, player.width, player.height
+        );
+    } else if (isImageValid(playerImg)) {
+        ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+    } else {
+        ctx.fillStyle = "#E53935";
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(player.x + 24, player.y + 10, 8, 8);
+        ctx.fillStyle = "#222222";
+        ctx.fillRect(player.x + 28, player.y + 12, 4, 4);
+    }
+}
+
+function gameLoop() {
+    update();
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+</body>
+</html>
